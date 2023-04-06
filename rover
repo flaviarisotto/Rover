@@ -1,0 +1,66 @@
+// Declaração das bibliotecas utilizadas
+#include <Wire.h> // Biblioteca para comunicação I2C
+#include <Adafruit_MotorShield.h> // Biblioteca para controle de motores
+#include <Adafruit_Sensor.h> // Biblioteca para sensores
+#include <Adafruit_BNO055.h> // Biblioteca para sensor de orientação BNO055
+#include <IRremote.h> // Biblioteca para sensor infravermelho
+#include <SoftwareSerial.h> // Biblioteca para comunicação serial
+
+// Declaração dos pinos utilizados
+#define SHIELD_ADDR 0x60 // Endereço do controlador de motores
+#define IR_SENSOR_PIN 2 // Pino do sensor infravermelho
+#define LEFT_MOTOR_PIN 1 // Pino do motor esquerdo
+#define RIGHT_MOTOR_PIN 2 // Pino do motor direito
+
+// Declaração dos objetos utilizados
+Adafruit_MotorShield AFMS(SHIELD_ADDR); // Objeto para controle de motores
+Adafruit_DCMotor *leftMotor = AFMS.getMotor(LEFT_MOTOR_PIN); // Objeto para motor esquerdo
+Adafruit_DCMotor *rightMotor = AFMS.getMotor(RIGHT_MOTOR_PIN); // Objeto para motor direito
+Adafruit_BNO055 bno = Adafruit_BNO055(); // Objeto para sensor de orientação
+IRrecv irrecv(IR_SENSOR_PIN); // Objeto para sensor infravermelho
+decode_results results; // Objeto para resultados do sensor infravermelho
+SoftwareSerial Serial1(11, 12); // Objeto para comunicação serial com GPS
+
+void setup() {
+  // Inicializa a comunicação serial com velocidade de 115200 baud
+  Serial.begin(115200);
+  
+  // Inicializa o controlador de motores
+  AFMS.begin();
+  
+  // Define a velocidade máxima dos motores
+  leftMotor->setSpeed(255);
+  rightMotor->setSpeed(255);
+  
+  // Realiza a calibração do sensor de orientação
+  if(!bno.begin())
+  {
+    Serial.println("Não foi possível inicializar o sensor de orientação.");
+    while(1);
+  }
+  bno.setExtCrystalUse(true);
+  
+  // Inicializa o sensor infravermelho
+  irrecv.enableIRIn();
+}
+
+void loop() {
+  // Lê os dados do sensor infravermelho
+  if (irrecv.decode(&results)) {
+    if (results.value == 0xFF6897) { // Comando para parar o rover
+      stopRover();
+    } else if (results.value == 0xFF30CF) { // Comando para mover o rover para frente
+      moveForward();
+    } else if (results.value == 0xFF18E7) { // Comando para mover o rover para trás
+      moveBackward();
+    } else if (results.value == 0xFF7A85) { // Comando para virar o rover para esquerda
+      turnLeft();
+    } else if (results.value == 0xFFA25D) { // Comando para virar o rover para direita
+      turnRight();
+    }
+    irrecv.resume();
+  }
+  
+  // Lê os dados do sensor de orientação e calcula a velocidade dos motores
+  float heading = getHeading();
+  float error = heading - 180;
